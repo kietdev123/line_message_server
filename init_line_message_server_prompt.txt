@@ -1,0 +1,109 @@
+Hãy tạo một server sử dụng FastAPI, dùng MySQL trong Docker làm database, hỗ trợ liên kết tài khoản người dùng với LINE Messaging API và gửi tin nhắn cho người dùng.
+
+🎯 Yêu cầu:
+1. Login & Tạo liên kết:
+GET /login: hiển thị form nhập username giả lập. Sau khi submit:
+
+Sinh nonce, lưu vào DB với username
+
+Redirect sang /link
+
+GET /link: gọi LINE API để tạo linkToken:
+POST https://api.line.me/v2/bot/user/{userId}/linkToken
+(Header: Authorization: Bearer {LINE_CHANNEL_ACCESS_TOKEN})
+
+Tạo URL liên kết:
+https://access.line.me/dialog/bot/accountLink?linkToken={linkToken}&nonce={nonce}
+Gửi link này cho user.
+
+2. Webhook từ LINE (POST /webhook):
+Xác thực chữ ký webhook bằng LINE_CHANNEL_SECRET
+
+Xử lý 2 loại event:
+
+✅ a. accountLink (liên kết thành công):
+json
+Sao chép
+Chỉnh sửa
+{
+  "type": "accountLink",
+  "link": { "result": "ok", "nonce": "..." },
+  "source": { "userId": "..." }
+}
+Dùng nonce để tìm user trong DB → cập nhật line_user_id
+
+✅ b. message (user gửi tin nhắn):
+json
+Sao chép
+Chỉnh sửa
+{
+  "type": "message",
+  "message": { "type": "text", "text": "..." },
+  "source": { "userId": "..." }
+}
+Kiểm tra line_user_id có tồn tại trong bảng users:
+
+Nếu đã liên kết → trả lời: "Bạn đã liên kết tài khoản thành công!"
+
+Nếu chưa liên kết:
+
+Tạo linkToken
+
+Gửi tin nhắn có chứa link liên kết:
+https://access.line.me/dialog/bot/accountLink?linkToken={linkToken}&nonce={nonce}
+
+Dùng API để gửi tin nhắn:
+
+css
+Sao chép
+Chỉnh sửa
+POST https://api.line.me/v2/bot/message/push
+Headers: Authorization: Bearer {LINE_CHANNEL_ACCESS_TOKEN}
+Body:
+{
+  "to": "{userId}",
+  "messages": [{ "type": "text", "text": "..." }]
+}
+3. Gửi tin nhắn từ hệ thống (POST /send-message):
+Nhận: { "user_id": 1, "message": "Hello" }
+
+Truy line_user_id từ DB, gửi tin nhắn như trên.
+
+4. API bổ sung:
+GET /users: trả về danh sách user, trạng thái liên kết LINE
+
+📦 Hệ thống:
+FastAPI + SQLAlchemy
+
+MySQL (Docker container, image mysql:8)
+
+Dockerfile + docker-compose
+
+.env-example chứa các biến môi trường, dùng .env để chạy thật
+
+Sử dụng venv, package lưu trong requirements.txt
+
+🔐 .env-example:
+makefile
+Sao chép
+Chỉnh sửa
+LINE_CHANNEL_SECRET=
+LINE_CHANNEL_ACCESS_TOKEN=
+BASE_URL=
+DB_HOST=
+DB_PORT=
+DB_USER=
+DB_PASSWORD=
+DB_NAME=
+📄 README.md cần hướng dẫn:
+Tạo môi trường ảo (venv)
+
+Chạy Docker
+
+Cấu hình .env
+
+Dùng ngrok test webhook LINE
+
+Thực hiện liên kết tài khoản
+
+Gửi tin nhắn qua API
